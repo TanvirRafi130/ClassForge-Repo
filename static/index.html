@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ClassForge — AI lecture &amp; course processor</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><text y=%2224%22 font-size=%2224%22>🧠</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">CF</div>
+      <div class="brand-text">
+        <strong>ClassForge</strong>
+        <span>Lecture → knowledge</span>
+      </div>
+    </div>
+
+    <button class="nav-btn active" data-view="process" id="nav-process">
+      <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 2a1 1 0 0 1 1 1v12.59l3.3-3.3a1 1 0 1 1 1.4 1.42l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.42l3.3 3.3V3a1 1 0 0 1 1-1Zm-8 18a1 1 0 0 1 1-1h14a1 1 0 1 1 0 2H5a1 1 0 0 1-1-1Z"/></svg>
+      New lecture
+    </button>
+    <button class="nav-btn" data-view="library" id="nav-library">
+      <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M4 4a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4Zm9 0v5h5"/></svg>
+      Library
+    </button>
+
+    <div class="sidebar-search">
+      <input id="search-input" placeholder="Search your library…">
+    </div>
+    <div id="search-results" class="search-results"></div>
+
+    <div class="sidebar-foot">
+      <div id="provider-badge" class="badge">checking engine…</div>
+      <div class="muted">ClassForge · local-first</div>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <!-- ===================== PROCESS VIEW ===================== -->
+    <section id="view-process" class="view">
+      <header class="hero">
+        <h1>Turn hours of learning into structured knowledge.</h1>
+        <p>Drop in a recorded lecture, a class video link, or an audio file. ClassForge transcribes it, finds every topic change, and writes chapters, notes, definitions, formulas, quizzes and flashcards for each one.</p>
+      </header>
+
+      <div class="card uploader">
+        <div class="tabs">
+          <button class="tab active" data-tab="url">Paste a link</button>
+          <button class="tab" data-tab="file">Upload a recording</button>
+        </div>
+
+        <form id="job-form">
+          <div class="tab-pane active" data-pane="url">
+            <label class="field">
+              <span>Lecture URL</span>
+              <input type="text" name="url" placeholder="https://youtube.com/watch?v=… or any video/audio link">
+            </label>
+          </div>
+          <div class="tab-pane" data-pane="file">
+            <label class="field dropzone" id="dropzone">
+              <span class="drop-icon">📼</span>
+              <span class="drop-label">Click to choose, or drag a video/audio file here</span>
+              <span class="drop-sub" id="file-chosen">mp4, mov, mkv, mp3, wav, m4a and more — up to 2&nbsp;GB</span>
+              <input type="file" name="file" id="file-input" accept=".mp4,.mov,.mkv,.webm,.avi,.m4v,.mp3,.wav,.m4a,.aac,.flac,.ogg,.opus,.wma">
+            </label>
+          </div>
+
+          <div class="field-row">
+            <label class="field">
+              <span>Title (optional)</span>
+              <input type="text" name="title" placeholder="e.g. Databases — Lecture 7: Normalization">
+            </label>
+            <label class="field narrow">
+              <span>Min. chapter length</span>
+              <select name="min_chapter_minutes">
+                <option value="2">2 min</option>
+                <option value="3" selected>3 min</option>
+                <option value="5">5 min</option>
+                <option value="8">8 min</option>
+                <option value="12">12 min</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="field-row">
+            <label class="field">
+              <span>Notes engine model</span>
+              <select name="ai_model" id="model-select">
+                <option value="">Loading available models…</option>
+              </select>
+              <span class="model-note" id="model-note"></span>
+            </label>
+          </div>
+
+          <button type="submit" class="primary-btn" id="submit-btn">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="m4 2 15 10L4 22V2Z"/></svg>
+            Process lecture
+          </button>
+        </form>
+      </div>
+
+      <div class="card progress-card hidden" id="progress-card">
+        <div class="progress-head">
+          <strong id="progress-stage">Queued</strong>
+          <span id="progress-pct">0%</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+        <p class="muted" id="progress-note">This runs fully on this machine — transcription and note-writing both take a while for long lectures.</p>
+      </div>
+
+      <div class="card error-card hidden" id="error-card">
+        <strong>Something went wrong</strong>
+        <p id="error-text"></p>
+      </div>
+    </section>
+
+    <!-- ===================== RESULT VIEW ===================== -->
+    <section id="view-result" class="view hidden">
+      <header class="result-head">
+        <button class="ghost-btn" id="back-btn">← New lecture</button>
+        <div class="result-title">
+          <h1 id="result-title">—</h1>
+          <div class="result-meta">
+            <span id="result-duration"></span>
+            <span>·</span>
+            <span id="result-chapters"></span>
+            <span>·</span>
+            <span id="result-source"></span>
+          </div>
+        </div>
+        <div class="export-group">
+          <span class="muted">Export:</span>
+          <a class="export-btn" id="export-md">Markdown</a>
+          <a class="export-btn" id="export-docx">DOCX</a>
+          <a class="export-btn" id="export-pdf">PDF</a>
+        </div>
+      </header>
+
+      <div class="result-body">
+        <nav class="toc" id="toc"></nav>
+        <div class="chapters" id="chapters"></div>
+      </div>
+    </section>
+
+    <!-- ===================== LIBRARY VIEW ===================== -->
+    <section id="view-library" class="view hidden">
+      <header class="hero">
+        <h1>Your library</h1>
+        <p>Every lecture you've processed, searchable across every chapter's notes and transcript.</p>
+      </header>
+      <div id="library-grid" class="library-grid"></div>
+      <div id="library-empty" class="empty-state hidden">
+        <span>📚</span>
+        <p>Nothing processed yet — go process your first lecture.</p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<template id="tpl-chapter">
+  <article class="chapter" id="">
+    <div class="chapter-head">
+      <div class="chapter-time"></div>
+      <h2 class="chapter-title"></h2>
+    </div>
+    <div class="chapter-tabs">
+      <button class="ctab active" data-ctab="notes">Notes</button>
+      <button class="ctab" data-ctab="quiz">Quiz</button>
+      <button class="ctab" data-ctab="flash">Flashcards</button>
+      <button class="ctab" data-ctab="transcript">Transcript</button>
+    </div>
+    <div class="cpane active" data-cpane="notes">
+      <p class="chapter-summary"></p>
+      <div class="kv-block kp-block">
+        <h4>Key points</h4>
+        <ul class="kp-list"></ul>
+      </div>
+      <div class="kv-block def-block">
+        <h4>Definitions</h4>
+        <dl class="def-list"></dl>
+      </div>
+      <div class="kv-block formula-block">
+        <h4>Formulas</h4>
+        <ul class="formula-list"></ul>
+      </div>
+    </div>
+    <div class="cpane" data-cpane="quiz">
+      <div class="quiz-list"></div>
+    </div>
+    <div class="cpane" data-cpane="flash">
+      <div class="flash-grid"></div>
+    </div>
+    <div class="cpane" data-cpane="transcript">
+      <p class="transcript-text"></p>
+    </div>
+  </article>
+</template>
+
+<script src="/app.js"></script>
+</body>
+</html>
