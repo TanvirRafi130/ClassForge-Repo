@@ -4,7 +4,7 @@
 # ---- Notes/quiz engine (pick ONE path) ----
 # 1) Local, free, offline (default if Ollama is installed):
 # OLLAMA_EXE=C:\Users\you\AppData\Local\Programs\Ollama\ollama.exe
-# OLLAMA_MODEL=qwen3.5:4b
+# OLLAMA_MODEL=qwen3.5:4b  # also selectable from the web UI; saved to .profile
 # OLLAMA_URL=http://127.0.0.1:11434
 # OLLAMA_MODELS=D:\ollama-models
 

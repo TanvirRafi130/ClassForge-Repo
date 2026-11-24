@@ -25,7 +25,7 @@ os.environ.setdefault("HF_HOME", str(MODELS_DIR / "hf"))
 WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "small")
 
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen3.5:4b")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "").strip()
 OLLAMA_CTX = int(os.environ.get("OLLAMA_CTX", "8192"))
 
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")

@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 
 from . import chapters as chaptermod
+from . import local_llm
 from . import config, export, notes as notesmod, source
 
 app = FastAPI(title=config.APP_NAME, description=config.TAGLINE)
@@ -131,6 +132,13 @@ def _run(job_id: str, req: JobRequest, upload_path: Path | None, upload_name: st
         _update(job_id, progress=pct, stage=message)
 
     try:
+        if config.ai_provider() == "ollama":
+            selected_model = req.ai_model.strip() if req.ai_model else config.OLLAMA_MODEL
+            if selected_model.lower() == "none" or not selected_model:
+                raise RuntimeError("No local LLM model is selected. Install a model in Ollama and choose it from the Notes engine model dropdown.")
+            installed = local_llm.installed_models()
+            if selected_model not in installed:
+                raise RuntimeError(f"Selected Ollama model '{selected_model}' is not installed or Ollama is unavailable. Install/pull the model, then select an available model in the dropdown.")
         if upload_path is not None:
             lec = source.from_local_file(upload_path, workdir, progress, title=req.title or upload_name)
         elif req.url.strip():
@@ -288,6 +296,69 @@ def job_export(job_id: str, fmt: str):
     raise HTTPException(400, "Unknown export format. Use md, docx, or pdf.")
 
 
+def _save_ollama_model(model: str) -> None:
+    """Persist the selected Ollama tag in .profile and update live config."""
+    profile = config.ROOT / ".profile"
+    lines = profile.read_text(encoding="utf-8").splitlines() if profile.exists() else []
+    replacement = f"OLLAMA_MODEL={model}" if model else "OLLAMA_MODEL="
+    found = False
+    for i, line in enumerate(lines):
+        if line.strip().startswith("OLLAMA_MODEL="):
+            lines[i] = replacement
+            found = True
+            break
+    if not found:
+        lines.extend(["", "# Selected local Ollama model (managed by ClassForge)", replacement])
+    tmp = profile.with_suffix(profile.suffix + ".tmp")
+    tmp.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    tmp.replace(profile)
+    if model:
+        os.environ["OLLAMA_MODEL"] = model
+    else:
+        os.environ.pop("OLLAMA_MODEL", None)
+    config.OLLAMA_MODEL = model
+
+
+@app.get("/api/models")
+def get_models():
+    """List locally installed Ollama models and the saved selection."""
+    provider = config.ai_provider()
+    if provider != "ollama":
+        return {"provider": provider, "models": [], "default": "", "selected": "",
+                "note": "Local model selection is available when Ollama is the active notes engine."}
+    models = local_llm.installed_models()
+    selected = config.OLLAMA_MODEL
+    note = "Choose an installed model. Your selection is saved to .profile."
+    if not models:
+        selected = ""
+        note = "No Ollama models found or Ollama is unavailable. Install/pull a model, then refresh this page."
+    elif selected and selected not in models:
+        note = f"Saved model '{selected}' is not installed. Select an available model or None."
+    return {"provider": provider, "models": models, "default": selected, "selected": selected, "note": note}
+
+
+class ModelSelection(BaseModel):
+    model: str = Field(default="", max_length=200)
+
+
+@app.post("/api/settings/model")
+def save_model_selection(selection: ModelSelection):
+    if config.ai_provider() != "ollama":
+        raise HTTPException(400, "Ollama is not the active notes engine.")
+    model = selection.model.strip()
+    if model and model.lower() != "none":
+        installed = local_llm.installed_models()
+        if model not in installed:
+            raise HTTPException(400, f"Model '{model}' is not installed in Ollama.")
+    else:
+        model = ""
+    try:
+        _save_ollama_model(model)
+    except OSError as exc:
+        raise HTTPException(500, f"Could not save .profile: {exc}") from exc
+    return {"ok": True, "model": model, "note": "Selection saved to .profile." if model else "No model selected. Local LLM processing will return an error until you select an installed model."}
+
+
 @app.get("/api/library")
 def library():
     return _library()
@@ -323,6 +394,8 @@ def status():
         "ai_provider": config.ai_provider(),
         "missing_tools": config.missing_tools(),
         "whisper_model": config.WHISPER_MODEL,
+        "ollama_model": config.OLLAMA_MODEL,
+        "ollama_runtime": local_llm.runtime_info() if config.ai_provider() == "ollama" else None,
     }
 
 

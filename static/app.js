@@ -27,35 +27,67 @@
     }
   }).catch(() => {});
 
-  // --- model dropdown: populate at runtime from whatever's actually available ---
+  // --- model dropdown: populate from Ollama and persist selection in .profile ---
   async function loadModels() {
     const select = $("#model-select");
     const note = $("#model-note");
     select.innerHTML = "";
     try {
-      const data = await (await fetch("/api/models")).json();
-      if (!data.provider || !data.models.length) {
+      const response = await fetch("/api/models");
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "Could not load models.");
+      if (data.provider !== "ollama") {
         const opt = document.createElement("option");
         opt.value = "";
-        opt.textContent = data.provider ? `No ${data.provider} models found` : "No AI engine — built-in notes";
+        opt.textContent = data.provider ? `Ollama unavailable (active engine: ${data.provider})` : "No AI engine configured";
         select.appendChild(opt);
         select.disabled = true;
-      } else {
-        select.disabled = false;
-        data.models.forEach(m => {
-          const opt = document.createElement("option");
-          opt.value = m;
-          opt.textContent = m === data.default ? `${m} (default)` : m;
-          if (m === data.default) opt.selected = true;
-          select.appendChild(opt);
-        });
+        note.textContent = data.note || "";
+        return;
       }
-      note.textContent = data.note || (data.provider ? `Engine: ${data.provider}` : "");
-    } catch {
-      select.innerHTML = '<option value="">Could not load models</option>';
-      select.disabled = true;
+
+      // Keep an explicit None option even when no models are installed.
+      const none = document.createElement("option");
+      none.value = "none";
+      none.textContent = "None — disable local LLM";
+      select.appendChild(none);
+      (data.models || []).forEach(model => {
+        const opt = document.createElement("option");
+        opt.value = model;
+        opt.textContent = model;
+        select.appendChild(opt);
+      });
+      select.disabled = false;
+      const selected = data.selected || data.default || "none";
+      select.value = (data.models || []).includes(selected) ? selected : "none";
+      note.textContent = data.note || "Selection is saved automatically to .profile.";
+    } catch (err) {
+      select.innerHTML = '<option value="none">None — model list unavailable</option>';
+      select.disabled = false;
+      note.textContent = err.message || "Could not load Ollama models.";
     }
   }
+
+  $("#model-select").addEventListener("change", async (event) => {
+    const select = event.currentTarget;
+    const note = $("#model-note");
+    select.disabled = true;
+    try {
+      const response = await fetch("/api/settings/model", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: select.value })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "Could not save model selection.");
+      note.textContent = data.note;
+    } catch (err) {
+      note.textContent = err.message;
+      await loadModels();
+    } finally {
+      select.disabled = false;
+    }
+  });
   loadModels();
 
   // --- upload tabs ---

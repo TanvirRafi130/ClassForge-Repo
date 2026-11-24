@@ -103,7 +103,9 @@ def generate(chapter_text: str, chapter_index: int, model: str | None = None) ->
                 flashcards=data.get("flashcards", []) or [],
             )
         except Exception:
-            pass  # fall through to the extractive fallback below
+            # Do not silently disguise local-model failures as successful notes.
+            # The job should report missing models, runtime errors, and OOMs.
+            raise
 
     return _extractive_fallback(text, chapter_index)
 
